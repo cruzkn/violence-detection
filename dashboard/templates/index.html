@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Violence Detection — Alert Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy:   #0D1B2A;  --blue:   #1B4F72;  --teal:   #0D7377;
+    --ltTeal: #14A0A4;  --gold:   #F4C430;  --red:    #E74C3C;
+    --card:   #132236;  --text:   #E8F4FD;  --muted:  #8BAFC7;
+  }
+  body { background: var(--navy); color: var(--text); font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  header { background: var(--card); padding: 0.6rem 1.2rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid var(--teal); }
+  header h1 { font-size: 1rem; font-weight: 700; color: var(--text); }
+  header h1 span { color: var(--teal); }
+  .status-pill { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; letter-spacing: 1px; }
+  .status-pill.online  { background: #0D7377; color: #fff; }
+  .status-pill.offline { background: #555;    color: #aaa; }
+
+  /* Main grid */
+  .main { display: grid; grid-template-columns: 1fr 320px; flex: 1; gap: 0; overflow: hidden; }
+
+  /* Left — Camera Feed */
+  .feed-panel { background: #050d18; display: flex; flex-direction: column; padding: 0.8rem; gap: 0.6rem; }
+  .feed-header { display: flex; align-items: center; justify-content: space-between; }
+  .cam-id { font-size: 0.75rem; color: var(--muted); font-weight: 600; letter-spacing: 1px; }
+  #cameraFeed { width: 100%; max-height: 380px; object-fit: contain; border: 1px solid var(--blue); border-radius: 4px; background: #050d18; }
+  .feed-placeholder { width: 100%; height: 360px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--blue); border-radius: 4px; color: var(--muted); font-size: 0.85rem; }
+
+  /* Score bar */
+  .score-section { background: var(--card); border-radius: 6px; padding: 0.7rem 1rem; }
+  .score-label { font-size: 0.7rem; color: var(--muted); letter-spacing: 1px; margin-bottom: 0.4rem; }
+  .score-bar-wrap { background: #0a1520; border-radius: 20px; height: 20px; overflow: hidden; }
+  .score-bar { height: 100%; border-radius: 20px; transition: width 0.4s ease, background 0.4s ease; background: var(--teal); width: 0%; }
+  .score-values { display: flex; justify-content: space-between; margin-top: 0.4rem; font-size: 0.75rem; }
+
+  /* Stats row */
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+  .stat-card { background: var(--card); border-radius: 6px; padding: 0.6rem 0.8rem; border-left: 3px solid var(--teal); }
+  .stat-card.alert-active { border-left-color: var(--red); animation: pulse 1s infinite; }
+  .stat-card .val { font-size: 1.3rem; font-weight: 700; color: var(--ltTeal); }
+  .stat-card .val.danger { color: var(--red); }
+  .stat-card .lbl { font-size: 0.65rem; color: var(--muted); margin-top: 0.15rem; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+  /* Controls */
+  .controls { display: flex; gap: 0.5rem; }
+  .btn { padding: 0.45rem 1rem; border: none; border-radius: 5px; font-size: 0.8rem; font-weight: 700; cursor: pointer; letter-spacing: 0.5px; transition: opacity 0.2s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-start  { background: var(--teal); color: #fff; }
+  .btn-stop   { background: #444; color: #aaa; }
+  .btn-webcam { background: var(--blue); color: #fff; }
+  input.source-input { background: #0a1520; border: 1px solid var(--blue); color: var(--text); padding: 0.4rem 0.6rem; border-radius: 5px; font-size: 0.8rem; width: 120px; }
+
+  /* Right — Alerts Panel */
+  .alerts-panel { background: var(--card); display: flex; flex-direction: column; border-left: 1px solid var(--blue); }
+  .alerts-header { padding: 0.8rem 1rem; border-bottom: 1px solid var(--blue); display: flex; align-items: center; justify-content: space-between; }
+  .alerts-header h2 { font-size: 0.85rem; font-weight: 700; color: var(--gold); letter-spacing: 1px; }
+  .alert-count { background: var(--red); color: #fff; border-radius: 20px; padding: 0.1rem 0.5rem; font-size: 0.7rem; font-weight: 700; }
+  .alerts-list { flex: 1; overflow-y: auto; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .alert-card { background: #0a1520; border-radius: 6px; padding: 0.65rem 0.8rem; border-left: 3px solid var(--red); transition: all 0.3s; }
+  .alert-card.confirmed { border-left-color: var(--teal); opacity: 0.6; }
+  .alert-card.dismissed { opacity: 0.3; }
+  .alert-card .a-time { font-size: 0.65rem; color: var(--muted); }
+  .alert-card .a-conf { font-size: 0.95rem; font-weight: 700; color: var(--red); }
+  .alert-card .a-cam  { font-size: 0.7rem; color: var(--ltTeal); margin: 0.2rem 0; }
+  .alert-card .a-actions { display: flex; gap: 0.35rem; margin-top: 0.4rem; }
+  .a-btn { padding: 0.2rem 0.55rem; border: none; border-radius: 4px; font-size: 0.65rem; font-weight: 700; cursor: pointer; }
+  .a-btn-confirm  { background: var(--teal); color: #fff; }
+  .a-btn-dismiss  { background: #333; color: var(--muted); }
+  .no-alerts { color: var(--muted); font-size: 0.8rem; text-align: center; padding: 2rem; }
+
+  footer { background: var(--card); padding: 0.3rem 1rem; font-size: 0.65rem; color: var(--muted); display: flex; justify-content: space-between; border-top: 1px solid var(--blue); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ <span>Violence Detection</span> — Real-Time Alert Dashboard</h1>
+  <div style="display:flex;align-items:center;gap:0.8rem;">
+    <span style="font-size:0.7rem;color:var(--muted);">APU Master's Thesis | CCTV AI System</span>
+    <span id="statusPill" class="status-pill offline">OFFLINE</span>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Left: Camera + Scores -->
+  <div class="feed-panel">
+    <div class="feed-header">
+      <span class="cam-id">📷 CAM-01 — Live Feed</span>
+      <div class="controls">
+        <input id="sourceInput" class="source-input" placeholder="0 or video path" value="0">
+        <button class="btn btn-start"  onclick="startStream()">▶ Start</button>
+        <button class="btn btn-stop"   onclick="stopStream()">■ Stop</button>
+      </div>
+    </div>
+
+    <div id="feedContainer">
+      <div class="feed-placeholder" id="placeholder">
+        📷 Camera feed will appear here after clicking Start
+      </div>
+      <img id="cameraFeed" style="display:none;" alt="Camera Feed">
+    </div>
+
+    <!-- Score bar -->
+    <div class="score-section">
+      <div class="score-label">VIOLENCE SCORE (DUAL-STREAM)</div>
+      <div class="score-bar-wrap">
+        <div class="score-bar" id="scoreBar"></div>
+      </div>
+      <div class="score-values">
+        <span>0.0 — Safe</span>
+        <span id="scoreText" style="font-weight:700;color:var(--ltTeal);">0.00</span>
+        <span>1.0 — Violent</span>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stats-row">
+      <div class="stat-card" id="statViolence">
+        <div class="val" id="violenceVal">0.00</div>
+        <div class="lbl">CLASSIFIER SCORE</div>
+      </div>
+      <div class="stat-card" id="statAE">
+        <div class="val" id="aeVal">0.000</div>
+        <div class="lbl">ANOMALY ERROR (AE)</div>
+      </div>
+      <div class="stat-card" id="statAlert">
+        <div class="val" id="alertCount">0</div>
+        <div class="lbl">TOTAL ALERTS</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Alert Log -->
+  <div class="alerts-panel">
+    <div class="alerts-header">
+      <h2>⚠ ALERT LOG</h2>
+      <span class="alert-count" id="alertBadge">0</span>
+    </div>
+    <div class="alerts-list" id="alertsList">
+      <div class="no-alerts">No alerts yet.<br>Alerts will appear here when violence is detected.</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>Real-Time Violence Detection System — APU Master's Research 2026</span>
+  <span id="footerTime"></span>
+</footer>
+
+<script>
+  const socket = io();
+  let alertCount = 0;
+  let scoreHistory = [];
+
+  // ── Socket Events ─────────────────────────────────────────────────────────
+  socket.on("connect",        () => setStatus(true));
+  socket.on("disconnect",     () => setStatus(false));
+  socket.on("stream_started", () => { showFeed(true); });
+  socket.on("stream_stopped", () => { showFeed(false); });
+
+  socket.on("frame", (data) => {
+    const img = document.getElementById("cameraFeed");
+    img.src = "data:image/jpeg;base64," + data.data;
+  });
+
+  socket.on("score_update", (score) => {
+    const pct = Math.round(score.final_score * 100);
+    const bar = document.getElementById("scoreBar");
+    bar.style.width   = pct + "%";
+    bar.style.background = score.alert ? "#E74C3C" : (pct > 35 ? "#F4C430" : "#0D7377");
+    document.getElementById("scoreText").textContent = score.final_score.toFixed(3);
+    document.getElementById("scoreText").style.color = score.alert ? "#E74C3C" : "#14A0A4";
+    document.getElementById("violenceVal").textContent  = score.violence_prob.toFixed(3);
+    document.getElementById("aeVal").textContent        = score.ae_error.toFixed(4);
+    if (score.alert) {
+      document.getElementById("statAlert").classList.add("alert-active");
+      setTimeout(() => document.getElementById("statAlert").classList.remove("alert-active"), 2000);
+    }
+  });
+
+  socket.on("new_alert", (alert) => {
+    alertCount++;
+    document.getElementById("alertCount").textContent = alertCount;
+    document.getElementById("alertBadge").textContent  = alertCount;
+    const list = document.getElementById("alertsList");
+    const noAlerts = list.querySelector(".no-alerts");
+    if (noAlerts) noAlerts.remove();
+    const card = document.createElement("div");
+    card.className = "alert-card";
+    card.id = `alert-${alert.id}`;
+    card.innerHTML = `
+      <div class="a-time">${alert.timestamp} | ${alert.camera}</div>
+      <div class="a-conf">⚠ ${(alert.confidence * 100).toFixed(1)}% Violence Score</div>
+      <div class="a-cam">Classifier: ${alert.violence_prob.toFixed(3)}</div>
+      <div class="a-actions">
+        <button class="a-btn a-btn-confirm" onclick="confirmAlert(${alert.id})">✓ Confirm</button>
+        <button class="a-btn a-btn-dismiss" onclick="dismissAlert(${alert.id})">✕ Dismiss</button>
+      </div>`;
+    list.insertBefore(card, list.firstChild);
+  });
+
+  socket.on("alert_updated", (alert) => {
+    const card = document.getElementById(`alert-${alert.id}`);
+    if (!card) return;
+    if (alert.confirmed) card.classList.add("confirmed");
+    if (alert.dismissed) card.classList.add("dismissed");
+  });
+
+  // ── Controls ──────────────────────────────────────────────────────────────
+  function startStream() {
+    const source = document.getElementById("sourceInput").value || "0";
+    socket.emit("start_stream", { source });
+  }
+  function stopStream() {
+    socket.emit("stop_stream");
+    showFeed(false);
+  }
+  function confirmAlert(id) {
+    fetch(`/api/alerts/${id}/confirm`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({officer: "Officer-1"})
+    });
+  }
+  function dismissAlert(id) {
+    fetch(`/api/alerts/${id}/dismiss`, { method: "POST" });
+  }
+  function setStatus(online) {
+    const pill = document.getElementById("statusPill");
+    pill.textContent = online ? "ONLINE" : "OFFLINE";
+    pill.className   = "status-pill " + (online ? "online" : "offline");
+  }
+  function showFeed(show) {
+    document.getElementById("cameraFeed").style.display   = show ? "block" : "none";
+    document.getElementById("placeholder").style.display  = show ? "none" : "flex";
+  }
+
+  // Clock
+  setInterval(() => {
+    document.getElementById("footerTime").textContent = new Date().toLocaleTimeString();
+  }, 1000);
+</script>
+</body>
+</html>

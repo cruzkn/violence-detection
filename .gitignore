@@ -1,0 +1,28 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Datasets — too large for git
+data/raw/
+data/processed/
+
+# Model weights
+models/*.pth
+models/*.pt
+
+# YOLOv8 auto-downloads
+*.pt
+runs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Results and logs
+results/*.png
+results/*.json
+*.log
+tensorboard_logs/

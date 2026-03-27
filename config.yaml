@@ -1,0 +1,65 @@
+# config.yaml
+# Central configuration for the violence detection project.
+# All scripts read defaults from here; CLI args override per-run.
+
+project:
+  name: "violence-detection"
+  author: "[Your Name]"
+  github: "https://github.com/cruzkn/violence-detection"
+
+paths:
+  dataset_root: "data/datasets/RWF-2000"
+  models_dir:   "models"
+  logs_dir:     "logs"
+  results_dir:  "results"
+
+pose:
+  model_size:   "n"          # n=nano (fastest), s, m, l, x
+  conf_threshold: 0.4
+  max_persons:  2
+  seq_len:      30           # frames per sequence window
+
+classifier:
+  arch:         "lstm"       # lstm | transformer
+  hidden_dim:   256          # LSTM hidden units
+  d_model:      128          # Transformer embed dim
+  nhead:        4            # Transformer attention heads
+  num_layers:   3
+  dropout:      0.4
+
+training:
+  batch_size:   16
+  epochs:       50
+  lr:           0.0003
+  weight_decay: 0.0001
+  patience:     10           # early stopping
+  num_workers:  0            # 0 = safe on macOS
+
+autoencoder:
+  latent_dim:   64
+  hidden_dim:   128
+  epochs:       40
+  lr:           0.001
+  sensitivity:  0.95         # anomaly threshold percentile
+
+alert_engine:
+  clf_threshold:   0.65      # P(Fight) to flag for fusion
+  anomaly_weight:  0.35      # 0=all-classifier, 1=all-anomaly
+  fused_threshold: 0.60      # final alert trigger
+  smooth_window:   5         # frames in temporal voting window
+  smooth_min_hits: 3         # min positive frames to fire alert
+  cooldown_secs:   10.0      # min gap between alerts per camera
+
+dashboard:
+  host:   "0.0.0.0"
+  port:   5000
+  source: "0"               # camera index or video file path
+
+evaluation:
+  targets:
+    accuracy:  0.90
+    precision: 0.88
+    recall:    0.90
+    f1:        0.89
+    auc_roc:   0.92
+    fps:       15.0
