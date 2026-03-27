@@ -1,7 +1,7 @@
 # Real-Time Violence Detection via Pose & Gesture Analysis in CCTV Surveillance Systems
 
-> APU Master's Thesis Implementation | CT095-6-M-RMCE | March 2026  
-> Student: **[Your Name]** | Supervisor: **[Supervisor Name]**
+> APU Master's Thesis Implementation | March 2026  
+> Student: karthikayan M
 
 ---
 
@@ -171,5 +171,4 @@ python dashboard/app.py
 
 ## 👨‍💻 Author
 
-**[Your Full Name]** | [TP Number] | Asia Pacific University  
-Supervisor: [Supervisor Name] | March 2026
+**[karthikayan M  | Asia Pacific University | March 2026
