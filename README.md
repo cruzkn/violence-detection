@@ -171,4 +171,4 @@ python dashboard/app.py
 
 ## 👨‍💻 Author
 
-**[karthikayan M  | Asia Pacific University | March 2026
+**[karthikayan M  | Asia Pacific University | March 2026]
